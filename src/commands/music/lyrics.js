@@ -1,40 +1,48 @@
-const axios = require('axios');
-const { MessageEmbed } = require('discord.js');
-require('dotenv').config();
+const Discord = require('discord.js');
+const lyricsFinder = require("lyrics-finder");
 
-const geniusApiKey = process.env.GENIUS_API_KEY;
+module.exports = async (client, interaction, args) => {
+    let search = "";
 
-module.exports = async (client, interaction) => {
-  // ... (unchanged code)
+        const player = client.player.players.get(interaction.guild.id);
 
-  let search = interaction.options.getString('song') || player.queue.current.title;
+        const channel = interaction.member.voice.channel;
+        if (!channel) return client.errNormal({
+            error: `You're not in a voice channel!`,
+            type: 'editreply'
+        }, interaction);
 
-  let lyrics = "";
+        if (player && (channel.id !== player?.voiceChannel)) return client.errNormal({
+            error: `You're not in the same voice channel!`,
+            type: 'editreply'
+        }, interaction);
 
-  try {
-    const response = await axios.get('https://api.genius.com/search', {
-      params: {
-        q: search,
-        access_token: geniusApiKey,
-      },
-    });
+        if (!player || !player.queue.current) return client.errNormal({
+            error: "There are no songs playing in this server",
+            type: 'editreply'
+        }, interaction);
 
-    const hits = response.data.response.hits;
+        if (!interaction.options.getString('song')) {
+            search = player.queue.current.title;
+        }
+        else {
+            search = interaction.options.getString('song');
+        }
 
-    if (hits.length > 0) {
-      const firstHit = hits[0].result;
-      lyrics = firstHit.title + " by " + firstHit.primary_artist.name + "\n\n" + firstHit.url;
-    } else {
-      lyrics = `No lyrics found for ${search} :x:`;
-    }
-  } catch (error) {
-    lyrics = `No lyrics found for ${search} :x:`;
-  }
+        let lyrics = "";
 
-  const embed = new MessageEmbed()
-    .setTitle(`${client.emotes.normal.music}・Lyrics For ${search}`)
-    .setDescription(lyrics)
-    .setColor('#0099ff');
+        try {
+            lyrics = await lyricsFinder(search, "");
+            if (!lyrics) lyrics = `No lyrics found for ${search} :x:`;
+        } catch (error) {
+            lyrics = `No lyrics found for ${search} :x:`;
+        }
 
-  interaction.reply({ embeds: [embed] });
-};
+        client.embed({
+            title: `${client.emotes.normal.music}・Lyrics For ${search}`,
+            desc: lyrics,
+            type: 'editreply'
+        }, interaction)
+}
+
+ 
